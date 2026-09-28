@@ -1,0 +1,15 @@
+{
+  "name": "vscode-bridge",
+  "displayName": "VS Code Bridge",
+  "description": "Localhost bridge exposing diagnostics and command execution to local automation without window focus",
+  "version": "1.0.0",
+  "publisher": "el1pn",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js"
+}
