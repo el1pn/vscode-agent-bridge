@@ -3,7 +3,7 @@ name: vscode
 description: Inspect VS Code Problems, Output, Debug Console, or Terminal, reload the workbench, and clean the Java language server workspace through explicit independent actions
 argument-hint: <problems|output|debug-console|terminal|reload|java-clean> [action ...] [options]
 user-invocable: true
-allowed-tools: Bash, Read, AskUserQuestion, mcp__plugin_vscode-agent-bridge_vscode__list_windows, mcp__plugin_vscode-agent-bridge_vscode__get_diagnostics, mcp__plugin_vscode-agent-bridge_vscode__execute_command, mcp__plugin_vscode-agent-bridge_vscode__get_debug_output, mcp__plugin_vscode-agent-bridge_vscode__get_terminal_output
+allowed-tools: Bash, Read, AskUserQuestion, mcp__plugin_vscode-agent-bridge_vscode__list_windows, mcp__plugin_vscode-agent-bridge_vscode__get_diagnostics, mcp__plugin_vscode-agent-bridge_vscode__execute_command, mcp__plugin_vscode-agent-bridge_vscode__reload_window, mcp__plugin_vscode-agent-bridge_vscode__get_debug_output, mcp__plugin_vscode-agent-bridge_vscode__get_terminal_output
 ---
 
 Operate VS Code using the explicit actions in `$ARGUMENTS`, left to right, each once. Perform only the requested actions; reject unknown actions or missing required options instead of guessing.
@@ -26,7 +26,7 @@ Select the target window with the `vscode` MCP tools (`list_windows`). If severa
 
 ## `reload` and `java-clean`
 
-- `reload`: `execute_command` with `workbench.action.reloadWindow`. Confirm by a new `pid` for that window in `list_windows`.
+- `reload`: `reload_window`. It waits for the new pid; with `settle_ms` it also returns settled diagnostics. When it returns `hostsThisSession: true`, confirm after the session resumes with `list_windows`.
 - `java-clean`: only when explicitly requested. `execute_command` with `java.clean.workspace`; VS Code shows a confirmation the user must answer. Never delete workspace storage or kill VS Code/JDT processes.
 - Neither implies up-to-date diagnostics; that needs `problems` with a settle wait.
 

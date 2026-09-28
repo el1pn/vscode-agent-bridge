@@ -67,6 +67,19 @@ test('routes tools to the registered bridge', async () => {
     assert.ok((await call('run_task', {})).isError);
     assert.ok((await call('nope')).isError);
 
+    // Reload: the "new host" is a registry entry with another live pid (this test's parent) on the same port.
+    const reloaded = { ...entry, pid: process.ppid };
+    setTimeout(() => {
+      fs.rmSync(path.join(config.registry, '1.json'));
+      fs.writeFileSync(path.join(config.registry, '9.json'), JSON.stringify(reloaded));
+    }, 200);
+    const reload = (await call('reload_window', { workspace: '/ws', settle_ms: 10, timeout_ms: 10_000 })).value;
+    assert.deepStrictEqual([reload.oldPid, reload.newPid, reload.diagnostics.total], [process.pid, process.ppid, 1]);
+    // ppid hosts this process, so reloading it must not wait for a restart this process would not survive.
+    assert.deepStrictEqual((await call('reload_window', { workspace: '/ws' })).value, { accepted: true, oldPid: process.ppid, hostsThisSession: true });
+    fs.writeFileSync(path.join(config.registry, '9.json'), JSON.stringify(entry));
+    assert.ok((await call('reload_window', { workspace: '/ws', timeout_ms: 1500 })).isError, 'no new pid');
+
     const { tools } = await handle({ method: 'tools/list' });
     assert.deepStrictEqual(tools.map((t) => t.name), Object.keys(HANDLERS));
     assert.strictEqual(await handle({ method: 'bogus' }), undefined);

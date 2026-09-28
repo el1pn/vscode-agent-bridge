@@ -76,7 +76,8 @@ function encode(value, seen = new Set()) {
 }
 
 // Resolves true once diagnostics stop changing for quietMs, false if timeoutMs passes first.
-function settle(quietMs, timeoutMs) {
+// firstChangeMs delays the first quiet window, for servers that are still starting and have not published yet.
+function settle(quietMs, timeoutMs, firstChangeMs = 0) {
   return new Promise((resolve) => {
     let quiet;
     const done = (settled) => {
@@ -90,12 +91,12 @@ function settle(quietMs, timeoutMs) {
       clearTimeout(quiet);
       quiet = setTimeout(done, quietMs, true);
     });
-    quiet = setTimeout(done, quietMs, true);
+    quiet = setTimeout(done, Math.max(quietMs, firstChangeMs), true);
   });
 }
 
-async function diagnostics({ minSeverity = 1, resource, settleMs = 0, timeoutMs = 120_000 }) {
-  const settled = settleMs > 0 ? await settle(settleMs, timeoutMs) : null;
+async function diagnostics({ minSeverity = 1, resource, settleMs = 0, timeoutMs = 120_000, firstChangeMs = 0 }) {
+  const settled = settleMs > 0 ? await settle(settleMs, timeoutMs, firstChangeMs) : null;
   const items = [];
   for (const [uri, list] of vscode.languages.getDiagnostics()) {
     const file = uri.scheme === 'file' ? uri.fsPath : uri.toString();

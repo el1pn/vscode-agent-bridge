@@ -3,6 +3,7 @@
 //
 // Each VS Code window running el1pn.vscode-agent-bridge registers {pid, port, token, ...}
 // in ~/.vscode-agent-bridge/<pid>.json; tools route requests to the selected window.
+const { execFileSync } = require('child_process');
 const fs = require('fs');
 const http = require('http');
 const os = require('os');
@@ -51,9 +52,7 @@ const TOOLS = [
       + 'workbench.action.reloadWindow, java.clean.workspace, vscode.executeDefinitionProvider, '
       + 'vscode.executeReferenceProvider, vscode.executeHoverProvider, vscode.executeDocumentSymbolProvider, '
       + 'vscode.executeWorkspaceSymbolProvider, vscode.open. Commands that open dialogs still need the user to answer them. '
-      + 'workbench.action.reloadWindow returns {accepted: true} before reloading and works on the window hosting '
-      + 'this Claude Code session: the VS Code extension restores the session and continues '
-      + '(claudeCode.continueAfterReload, on by default). Confirm a reload by a new pid in list_windows.',
+      + 'Use reload_window instead of workbench.action.reloadWindow.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -62,6 +61,23 @@ const TOOLS = [
         args: { type: 'array', description: ARGS_DESCRIPTION },
       },
       required: ['command'],
+    },
+  },
+  {
+    name: 'reload_window',
+    description: 'Reload a VS Code window and wait until its bridge answers again with a new pid; with settle_ms, also wait '
+      + 'for diagnostics to settle and return their counts (full array to `out`); the settle wait starts after the first '
+      + 'diagnostics change or 30s, since restarted language servers publish late. If the window hosts this Claude Code '
+      + 'session, returns {accepted: true, hostsThisSession: true} immediately: the session restarts and continues '
+      + '(claudeCode.continueAfterReload, on by default); then confirm with list_windows.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspace: WORKSPACE,
+        settle_ms: { type: 'integer', minimum: 0, description: 'After reload, wait until diagnostics have not changed for this many ms.' },
+        timeout_ms: { type: 'integer', minimum: 0, description: 'Upper bound for the whole reload; default 120000.' },
+        out: { type: 'string', description: 'With settle_ms: absolute path for the diagnostics snapshot.' },
+      },
     },
   },
   {
@@ -205,8 +221,8 @@ function call(entry, route, body = {}) {
 
 async function getDiagnostics({
   workspace, out, min_count: minCount = 0, min_severity: minSeverity, resource, settle_ms: settleMs, timeout_ms: timeoutMs,
-} = {}) {
-  const { settled, items } = await call(select(workspace), '/diagnostics', { minSeverity, resource, settleMs, timeoutMs });
+}, firstChangeMs) {
+  const { settled, items } = await call(select(workspace), '/diagnostics', { minSeverity, resource, settleMs, timeoutMs, firstChangeMs });
   if (items.length < minCount) throw new ToolError(`Only ${items.length} diagnostics, below min_count ${minCount}`);
   const counts = Object.fromEntries(Object.values(SEVERITY_NAMES).map((name) => [name, 0]));
   for (const item of items) {
@@ -229,10 +245,63 @@ function executeCommand({ command, workspace, args = [] } = {}) {
   return call(select(workspace), '/command', { command, args });
 }
 
+// Stable across reloads, unlike pid; also accepted by select().
+const windowKey = (e) => e.workspaceFile ?? e.folders?.[0] ?? e.workspaceName;
+const FIRST_CHANGE_MS = 30_000;
+const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
+
+// ponytail: POSIX ps walk; on Windows it returns false, so reloading the hosting window just drops this call.
+function hostsThisProcess(pid) {
+  for (let current = process.ppid; current > 1;) {
+    if (current === pid) return true;
+    try {
+      current = Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(current)], { encoding: 'utf8' }).trim());
+    } catch {
+      return false;
+    }
+  }
+  return false;
+}
+
+async function reloadWindow({ workspace, settle_ms: settleMs, timeout_ms: timeoutMs = 120_000, out } = {}) {
+  const before = select(workspace);
+  const key = windowKey(before);
+  await call(before, '/command', { command: 'workbench.action.reloadWindow' });
+  // This process dies with the window, so waiting would never return.
+  if (hostsThisProcess(before.pid)) return { accepted: true, oldPid: before.pid, hostsThisSession: true };
+  const deadline = Date.now() + timeoutMs;
+  // The extension host may restart more than once, so require the same new pid to answer twice.
+  let candidate = null;
+  while (Date.now() < deadline) {
+    await sleep(1000);
+    const entry = windows().find((e) => windowKey(e) === key && e.pid !== before.pid);
+    if (!entry) { candidate = null; continue; }
+    try {
+      await call(entry, '/commands', { filter: '\u0000' }); // cheap liveness probe: matches no command
+    } catch {
+      candidate = null;
+      continue;
+    }
+    if (candidate?.pid === entry.pid) {
+      const result = { oldPid: before.pid, newPid: entry.pid, version: entry.version ?? null };
+      if (!settleMs) return result;
+      // Language servers restart with the host and may publish nothing for a while; don't mistake that for settled.
+      const diagnostics = await getDiagnostics(
+        { workspace: key, settle_ms: settleMs, timeout_ms: Math.max(deadline - Date.now(), 1), out },
+        Math.min(FIRST_CHANGE_MS, deadline - Date.now()),
+      );
+      return { ...result, diagnostics };
+    }
+    candidate = entry;
+  }
+  throw new ToolError(`Window ${JSON.stringify(key)} did not come back within ${timeoutMs} ms`);
+}
+
 const HANDLERS = {
   list_windows: () => windows().map(summary),
-  get_diagnostics: getDiagnostics,
+  get_diagnostics: (args = {}) => getDiagnostics(args),
   execute_command: executeCommand,
+  reload_window: reloadWindow,
   list_commands: ({ workspace, filter } = {}) => call(select(workspace), '/commands', { filter }),
   list_tasks: ({ workspace } = {}) => call(select(workspace), '/tasks'),
   run_task: ({ workspace, name, source, folder, timeout_ms: timeoutMs } = {}) => {
@@ -249,7 +318,7 @@ async function handle({ method, params = {} }) {
     return {
       protocolVersion: params.protocolVersion ?? '2025-06-18',
       capabilities: { tools: {} },
-      serverInfo: { name: 'vscode-agent-bridge', version: '3.0.0' },
+      serverInfo: { name: 'vscode-agent-bridge', version: '3.2.0' },
     };
   }
   if (method === 'ping') return {};
