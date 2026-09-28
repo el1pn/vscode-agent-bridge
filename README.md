@@ -9,7 +9,7 @@ Lets local agents read VS Code diagnostics and run VS Code commands without rais
   - `/debug-output` `{session, category}`: Debug Console output captured by a debug adapter tracker.
   - `/terminal-output` `{terminal, limit}`: per-command output and exit code captured through shell integration.
 - `mcp/server.js`: a stdio MCP server (Node.js built-ins only) exposing those routes as tools. It routes each call to the selected window.
-- `skills/vscode`: the `/vscode` skill. It drives the MCP tools, waits for the JDT language server, compares diagnostics snapshots, and reads Output/Debug Console/Terminal from log files.
+- `skills/vscode`: the `/vscode` skill. It drives the MCP tools, waits for the JDT language server, compares diagnostics snapshots, and reads Output channels from log files.
 - `hooks/`: on `SessionStart`, builds and installs the extension when the installed version is missing or stale.
 
 ## Security
