@@ -6,7 +6,7 @@ Lets local agents read VS Code diagnostics and run VS Code commands without rais
   - `GET /diagnostics`: all diagnostics in Problems-panel JSON shape (`severity`: 8 error, 4 warning, 2 information, 1 hint).
   - `POST /command` `{"command": "<id>", "args": [...]}`: runs a command. `workbench.action.reloadWindow` replies `202` before reloading.
 - `mcp/server.py`: a stdio MCP server (Python standard library only) with the tools `list_windows`, `get_diagnostics` and `execute_command`. It routes each call to the selected window.
-- `skills/vscode`: the `/vscode` skill. It uses the MCP tools first and falls back to macOS UI automation for panels without an API (Output, Debug Console, Terminal).
+- `skills/vscode`: the `/vscode` skill. It drives the MCP tools, waits for the JDT language server, compares diagnostics snapshots, and reads Output/Debug Console/Terminal from log files.
 - `hooks/`: on `SessionStart`, builds and installs the extension when the installed version is missing or stale.
 
 ## Security

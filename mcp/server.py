@@ -42,7 +42,10 @@ TOOLS = [
     {
         "name": "execute_command",
         "description": "Run a VS Code command in a window without focusing it, e.g. workbench.action.reloadWindow or "
-        "java.clean.workspace. Commands that open dialogs still need the user to answer them.",
+        "java.clean.workspace. Commands that open dialogs still need the user to answer them. "
+        "workbench.action.reloadWindow returns {accepted: true} before reloading and works on the window hosting "
+        "this Claude Code session: the VS Code extension restores the session and continues "
+        "(claudeCode.continueAfterReload, on by default). Confirm a reload by a new pid in list_windows.",
         "inputSchema": {
             "type": "object",
             "properties": {
