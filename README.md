@@ -9,7 +9,7 @@ Lets local agents read VS Code diagnostics and run VS Code commands without rais
   - `/debug-output` `{session, category}`: Debug Console output captured by a debug adapter tracker.
   - `/terminal-output` `{terminal, limit}`: per-command output and exit code captured through shell integration.
 - `mcp/server.js`: a stdio MCP server (Node.js built-ins only) exposing those routes as tools. It routes each call to the selected window.
-- `skills/vscode`: the `/vscode` skill. It drives the MCP tools, waits for the JDT language server, compares diagnostics snapshots, and reads Output channels from log files.
+- `skills/vscode`: the `/vscode` skill. It drives the MCP tools, compares diagnostics snapshots, and reads Output channels from log files.
 - `hooks/`: on `SessionStart`, builds and installs the extension when the installed version is missing or stale.
 
 ## Security
@@ -29,8 +29,8 @@ Support is added per platform and per agent when needed, not through one abstrac
 | Target | Status | Gap to close |
 |---|---|---|
 | macOS + Claude Code (VS Code extension) | Supported, tested | — |
-| Linux | Untested; code is POSIX-only | `wait-for-jdt.py` uses `ps -axo` (BSD form) |
-| Windows | Untested | MCP server is Node and cross-platform; remaining gaps: bash hook, `ps` in `wait-for-jdt.py` |
+| Linux | Untested | Registry path and hook assume a POSIX shell, which Linux has |
+| Windows | Untested | Install hook is bash; `compare-diagnostics.py` needs Python |
 | Codex / Gemini / OpenCode | Manual setup | No stable server path outside the Claude plugin cache; the `execute_command` reload note assumes Claude Code's `continueAfterReload` |
 | VS Code Remote (SSH/WSL/containers) | Unsupported | Extension runs remotely and writes its registry there |
 | Cursor / Windsurf / VSCodium | Untested | The hook installs through `code` only |

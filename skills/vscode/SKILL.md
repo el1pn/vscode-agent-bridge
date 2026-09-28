@@ -1,7 +1,7 @@
 ---
 name: vscode
-description: Inspect VS Code Problems, Output, Debug Console, or Terminal, reload the workbench, and manage JDT lifecycle through explicit independent actions
-argument-hint: <problems|output|debug-console|terminal|reload|java-wait|java-clean> [action ...] [options]
+description: Inspect VS Code Problems, Output, Debug Console, or Terminal, reload the workbench, and clean the Java language server workspace through explicit independent actions
+argument-hint: <problems|output|debug-console|terminal|reload|java-clean> [action ...] [options]
 user-invocable: true
 allowed-tools: Bash, Read, AskUserQuestion, mcp__plugin_vscode-agent-bridge_vscode__list_windows, mcp__plugin_vscode-agent-bridge_vscode__get_diagnostics, mcp__plugin_vscode-agent-bridge_vscode__execute_command, mcp__plugin_vscode-agent-bridge_vscode__get_debug_output, mcp__plugin_vscode-agent-bridge_vscode__get_terminal_output
 ---
@@ -10,7 +10,7 @@ Operate VS Code using the explicit actions in `$ARGUMENTS`, left to right, each 
 
 ```text
 /vscode problems --out /tmp/after.json --compare /tmp/before.json
-/vscode reload java-wait problems --out /tmp/problems.json
+/vscode reload problems --settle 5000 --out /tmp/problems.json
 /vscode output --channel "Language Support for Java"
 ```
 
@@ -21,21 +21,14 @@ Select the target window with the `vscode` MCP tools (`list_windows`). If severa
 1. Call `get_diagnostics` with the window, `out` (default: a new `/tmp` path), and `min_count` (default `1`; for a known large workspace, derive a conservative threshold from the previous snapshot).
 2. With `--compare <path>`, run `python3 <skill base directory>/scripts/compare-diagnostics.py <before> <after>`. Identity is the tuple `resource`, `startLineNumber`, `startColumn`, `severity`, `message`.
 3. Report counts, the snapshot path, and exact removed/added counts. Build success is not diagnostic evidence.
-4. Right after `reload`, `java-clean`, or edits, pass `settle_ms` (for example `5000`) so the tool waits until language servers stop publishing; report `settled: false` as a timeout. `min_severity` and `resource` filter large workspaces.
+4. `--settle <ms>` maps to `settle_ms`: wait until language servers stop publishing, bounded by `--timeout <seconds>` (default `120`). Pass it after `reload`, `java-clean`, or edits even when not given (default `5000`), since diagnostics are stale until servers finish. Report `settled: false` as a timeout, never as stability.
+5. `--severity <error|warning|information|hint>` and `--resource <substring>` map to `min_severity` and `resource`; keep the unfiltered snapshot unless the user asked for a filtered file.
 
 ## `reload` and `java-clean`
 
 - `reload`: `execute_command` with `workbench.action.reloadWindow`. Confirm by a new `pid` for that window in `list_windows`.
 - `java-clean`: only when explicitly requested. `execute_command` with `java.clean.workspace`; VS Code shows a confirmation the user must answer. Never delete workspace storage or kill VS Code/JDT processes.
-- Neither implies a stable language server; that needs `java-wait`.
-
-## `java-wait`
-
-Wait for the JDT Language Server to stabilize.
-
-Options: `--storage <path>` (Red Hat Java workspace-storage dir; infer only when exactly one fits), `--expected-java <path-or-substring>`, `--timeout <seconds>` (default `120`).
-
-Run `python3 <skill base directory>/scripts/wait-for-jdt.py --storage <path> [--expected-java <jdk>] --interval 2 --stable-checks 3 --timeout <s>`. It requires a live `org.eclipse.equinox.launcher` process and stable `jdt_ws`/`ss_ws` timestamps. On timeout, report failure; silence is not stability.
+- Neither implies up-to-date diagnostics; that needs `problems` with a settle wait.
 
 ## `debug-console`, `terminal`, `output`
 
