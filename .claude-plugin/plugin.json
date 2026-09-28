@@ -2,9 +2,10 @@
   "name": "vscode-agent-bridge",
   "displayName": "VS Code Agent Bridge",
   "description": "Focus-free VS Code diagnostics, commands, rename, file moves, call hierarchy, tasks, and debugging through a bundled extension and MCP server.",
-  "version": "4.1.0",
+  "version": "4.1.1",
   "author": {
-    "name": "longpn"
+    "name": "longpn",
+    "url": "https://github.com/el1pn"
   },
   "keywords": [
     "vscode",
@@ -19,5 +20,8 @@
         "${CLAUDE_PLUGIN_ROOT}/mcp/server.js"
       ]
     }
-  }
+  },
+  "homepage": "https://github.com/el1pn/vscode-agent-bridge",
+  "repository": "https://github.com/el1pn/vscode-agent-bridge",
+  "license": "MIT"
 }

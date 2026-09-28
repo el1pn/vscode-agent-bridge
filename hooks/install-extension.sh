@@ -12,7 +12,7 @@ installed=$(code --list-extensions --show-versions 2>/dev/null | sed -n 's/^el1p
 
 dir=$(mktemp -d)
 cd "$src" \
-  && npx -y @vscode/vsce package --allow-missing-repository --skip-license -o "$dir/extension.vsix" >/dev/null 2>&1 \
+  && npx -y @vscode/vsce package --allow-missing-repository -o "$dir/extension.vsix" >/dev/null 2>&1 \
   && code --install-extension "$dir/extension.vsix" --force >/dev/null 2>&1 \
   && echo "VS Code Agent Bridge $version installed; reload VS Code windows to activate it."
 rm -rf "$dir"

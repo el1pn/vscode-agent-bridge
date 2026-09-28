@@ -18,9 +18,39 @@ Any process running as the same user can read the token and run arbitrary VS Cod
 
 ## Install
 
-Claude Code: install the `vscode-agent-bridge` plugin from the `el1pn` marketplace. Reload VS Code windows once after the extension is first installed.
+Requirements: VS Code 1.93 or later with the `code` command on `PATH` (on macOS, run "Shell Command: Install 'code' command in PATH"), and Node.js with `npx`.
 
-Other MCP clients: install the extension (VS Code 1.93 or later) (`cd extension && npx -y @vscode/vsce package --allow-missing-repository --skip-license && code --install-extension *.vsix`), then register `node <repo>/mcp/server.js` as a stdio server.
+### Claude Code
+
+```sh
+claude plugin marketplace add el1pn/vscode-agent-bridge
+claude plugin install vscode-agent-bridge@vscode-agent-bridge
+```
+
+Start a new Claude Code session: its `SessionStart` hook builds and installs the extension in the background. Then reload each open VS Code window once (Developer: Reload Window). `claude mcp list` should show `plugin:vscode-agent-bridge:vscode` as connected, and the `list_windows` tool should list your windows.
+
+Update with `claude plugin update vscode-agent-bridge@vscode-agent-bridge`; when the extension changes, the next session upgrades it and you reload the windows.
+
+### Other MCP clients
+
+Install the extension, then register the MCP server from a clone:
+
+```sh
+git clone https://github.com/el1pn/vscode-agent-bridge.git
+cd vscode-agent-bridge/extension
+npx -y @vscode/vsce package --allow-missing-repository -o /tmp/vscode-agent-bridge.vsix
+code --install-extension /tmp/vscode-agent-bridge.vsix
+```
+
+Register `node /absolute/path/to/vscode-agent-bridge/mcp/server.js` as a stdio server, for example in Codex `~/.codex/config.toml`:
+
+```toml
+[mcp_servers.vscode]
+command = "node"
+args = ["/absolute/path/to/vscode-agent-bridge/mcp/server.js"]
+```
+
+Reload open VS Code windows once. Pull and repeat the extension steps to update. Reloading the window that hosts the agent may stop it, since resuming after a reload is a Claude Code feature.
 
 ## Support
 
@@ -31,7 +61,7 @@ Support is added per platform and per agent when needed, not through one abstrac
 | macOS + Claude Code (VS Code extension) | Supported, tested | — |
 | Linux | Untested | Registry path and hook assume a POSIX shell, which Linux has |
 | Windows | Untested | Install hook is bash; `reload_window` session detection uses `ps` |
-| Codex / Gemini / OpenCode | Manual setup | No stable server path outside the Claude plugin cache; the `reload_window` session note assumes Claude Code's `continueAfterReload` |
+| Codex / Gemini / OpenCode | Manual setup, untested | Setup from a clone (see Install); the `reload_window` session note assumes Claude Code's `continueAfterReload` |
 | VS Code Remote (SSH/WSL/containers) | Unsupported | Extension runs remotely and writes its registry there |
 | Cursor / Windsurf / VSCodium | Untested | The hook installs through `code` only |
 
@@ -39,3 +69,8 @@ Support is added per platform and per agent when needed, not through one abstrac
 
 - Self-check: `node --test mcp/server.test.js`
 - When `extension/` changes, bump `extension/package.json` `version` so the hook reinstalls it, and bump `.claude-plugin/plugin.json` `version` so `claude plugin update` picks up the change.
+
+## License
+
+MIT
+
