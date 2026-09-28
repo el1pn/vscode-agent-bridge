@@ -26,7 +26,7 @@ Select the target window with the `vscode` MCP tools (`list_windows`). If severa
 
 ## `reload` and `java-clean`
 
-- `reload`: `reload_window`. It waits for the new pid; with `settle_ms` it also returns settled diagnostics. When it returns `hostsThisSession: true`, confirm after the session resumes with `list_windows`.
+- `reload`: `reload_window`. It waits for the new pid; with `settle_ms` it also returns settled diagnostics. When it returns `hostsThisSession: true`, confirm after the session resumes with `list_windows`. If it refuses because other Claude Code sessions run in the window, ask the user with `AskUserQuestion` (reloading stops their background subagents, which do not resume on their own) and pass `force: true` only after they agree.
 - `java-clean`: only when explicitly requested. `execute_command` with `java.clean.workspace`; VS Code shows a confirmation the user must answer. Never delete workspace storage or kill VS Code/JDT processes.
 - Neither implies up-to-date diagnostics; that needs `problems` with a settle wait.
 

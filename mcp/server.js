@@ -69,7 +69,8 @@ const TOOLS = [
       + 'for diagnostics to settle and return their counts (full array to `out`); the settle wait starts after the first '
       + 'diagnostics change or 30s, since restarted language servers publish late. If the window hosts this Claude Code '
       + 'session, returns {accepted: true, hostsThisSession: true} immediately: the session restarts and continues '
-      + '(claudeCode.continueAfterReload, on by default); then confirm with list_windows.',
+      + '(claudeCode.continueAfterReload, on by default); then confirm with list_windows. Refuses when other Claude Code '
+      + 'sessions run in the window, because reloading stops their background subagents; pass force: true only after the user agreed.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -77,6 +78,7 @@ const TOOLS = [
         settle_ms: { type: 'integer', minimum: 0, description: 'After reload, wait until diagnostics have not changed for this many ms.' },
         timeout_ms: { type: 'integer', minimum: 0, description: 'Upper bound for the whole reload; default 120000.' },
         out: { type: 'string', description: 'With settle_ms: absolute path for the diagnostics snapshot.' },
+        force: { type: 'boolean', description: 'Reload even though other Claude Code sessions run in the window. Only after the user agreed.' },
       },
     },
   },
@@ -242,6 +244,7 @@ async function getDiagnostics({
 
 function executeCommand({ command, workspace, args = [] } = {}) {
   if (typeof command !== 'string') throw new ToolError('command must be a string');
+  if (command === 'workbench.action.reloadWindow') throw new ToolError('Use reload_window, which checks for other sessions in the window.');
   return call(select(workspace), '/command', { command, args });
 }
 
@@ -250,25 +253,57 @@ const windowKey = (e) => e.workspaceFile ?? e.folders?.[0] ?? e.workspaceName;
 const FIRST_CHANGE_MS = 30_000;
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
-// ponytail: POSIX ps walk; on Windows it returns false, so reloading the hosting window just drops this call.
-function hostsThisProcess(pid) {
-  for (let current = process.ppid; current > 1;) {
-    if (current === pid) return true;
-    try {
-      current = Number(execFileSync('ps', ['-o', 'ppid=', '-p', String(current)], { encoding: 'utf8' }).trim());
-    } catch {
-      return false;
-    }
+// ponytail: POSIX ps only. On Windows this returns an empty table, so reload_window neither detects the
+// hosting session nor blocks on other agents; add a Windows process listing before supporting it there.
+function processTable() {
+  let text = '';
+  try {
+    text = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+  } catch {
+    return new Map();
   }
-  return false;
+  const table = new Map();
+  for (const line of text.split('\n')) {
+    const match = /^\s*(\d+)\s+(\d+)\s+(.*)$/.exec(line);
+    if (match) table.set(Number(match[1]), { ppid: Number(match[2]), command: match[3] });
+  }
+  return table;
 }
 
-async function reloadWindow({ workspace, settle_ms: settleMs, timeout_ms: timeoutMs = 120_000, out } = {}) {
+function ancestors(table, pid) {
+  const chain = [];
+  for (let current = pid; current > 1 && table.has(current) && !chain.includes(current);) {
+    chain.push(current);
+    current = table.get(current).ppid;
+  }
+  return chain;
+}
+
+// Claude Code sessions whose process descends from the extension host; background subagents run inside them.
+function agentsInWindow(hostPid) {
+  const table = processTable();
+  const mine = new Set(ancestors(table, process.ppid));
+  const hostsThisSession = mine.has(hostPid);
+  const others = [];
+  for (const [pid, { command }] of table) {
+    if (mine.has(pid) || !/(^|\/)claude(\s|$)/.test(command.split(' --')[0])) continue;
+    if (ancestors(table, pid).includes(hostPid)) others.push(pid);
+  }
+  return { hostsThisSession, others };
+}
+
+async function reloadWindow({ workspace, settle_ms: settleMs, timeout_ms: timeoutMs = 120_000, out, force = false } = {}) {
   const before = select(workspace);
   const key = windowKey(before);
+  const { hostsThisSession, others } = agentsInWindow(before.pid);
+  if (others.length && !force) {
+    throw new ToolError(`Window ${JSON.stringify(key)} hosts ${others.length} other Claude Code session(s) (pid ${others.join(', ')}). `
+      + 'Reloading restarts them and stops their running background subagents, which do not resume on their own. '
+      + 'Ask the user, then retry with force: true.');
+  }
   await call(before, '/command', { command: 'workbench.action.reloadWindow' });
   // This process dies with the window, so waiting would never return.
-  if (hostsThisProcess(before.pid)) return { accepted: true, oldPid: before.pid, hostsThisSession: true };
+  if (hostsThisSession) return { accepted: true, oldPid: before.pid, hostsThisSession: true };
   const deadline = Date.now() + timeoutMs;
   // The extension host may restart more than once, so require the same new pid to answer twice.
   let candidate = null;
@@ -318,7 +353,7 @@ async function handle({ method, params = {} }) {
     return {
       protocolVersion: params.protocolVersion ?? '2025-06-18',
       capabilities: { tools: {} },
-      serverInfo: { name: 'vscode-agent-bridge', version: '3.2.0' },
+      serverInfo: { name: 'vscode-agent-bridge', version: '3.3.0' },
     };
   }
   if (method === 'ping') return {};
@@ -361,4 +396,4 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { config, handle, HANDLERS };
+module.exports = { config, handle, HANDLERS, agentsInWindow };

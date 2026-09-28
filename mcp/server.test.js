@@ -5,7 +5,7 @@ const http = require('http');
 const os = require('os');
 const path = require('path');
 const test = require('node:test');
-const { config, handle, HANDLERS } = require('./server.js');
+const { config, handle, HANDLERS, agentsInWindow } = require('./server.js');
 
 const TOKEN = 't';
 const DIAGNOSTICS = [{ resource: '/a.ts', startLineNumber: 1, startColumn: 1, severity: 8, message: 'x' }];
@@ -79,6 +79,22 @@ test('routes tools to the registered bridge', async () => {
     assert.deepStrictEqual((await call('reload_window', { workspace: '/ws' })).value, { accepted: true, oldPid: process.ppid, hostsThisSession: true });
     fs.writeFileSync(path.join(config.registry, '9.json'), JSON.stringify(entry));
     assert.ok((await call('reload_window', { workspace: '/ws', timeout_ms: 1500 })).isError, 'no new pid');
+    assert.ok((await call('execute_command', { command: 'workbench.action.reloadWindow' })).isError, 'reload goes through reload_window');
+
+    // A child `claude` process of the window's host counts as another session and blocks the reload.
+    const { spawn } = require('child_process');
+    const bin = path.join(config.registry, 'claude');
+    fs.writeFileSync(bin, '#!/bin/sh\nsleep 30\n', { mode: 0o755 });
+    const other = spawn(bin, ['--output-format', 'stream-json']);
+    try {
+      await new Promise((resolve) => { setTimeout(resolve, 300); });
+      assert.deepStrictEqual(agentsInWindow(process.pid).others, [other.pid]);
+      fs.writeFileSync(path.join(config.registry, '9.json'), JSON.stringify(entry));
+      const refused = await call('reload_window', { workspace: '/ws' });
+      assert.ok(refused.isError && refused.value.includes(`pid ${other.pid}`), refused.value);
+    } finally {
+      other.kill();
+    }
 
     const { tools } = await handle({ method: 'tools/list' });
     assert.deepStrictEqual(tools.map((t) => t.name), Object.keys(HANDLERS));

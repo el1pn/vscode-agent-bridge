@@ -8,7 +8,7 @@ Lets local agents read VS Code diagnostics and run VS Code commands without rais
   - `/commands` `{filter}`, `/tasks`, `/run-task` `{name, source, folder, timeoutMs}`.
   - `/debug-output` `{session, category}`: Debug Console output captured by a debug adapter tracker.
   - `/terminal-output` `{terminal, limit}`: per-command output and exit code captured through shell integration.
-- `mcp/server.js`: a stdio MCP server (Node.js built-ins only) exposing those routes as tools, plus `reload_window`, which reloads a window and waits for its new extension host (and optionally for diagnostics to settle). It routes each call to the selected window.
+- `mcp/server.js`: a stdio MCP server (Node.js built-ins only) exposing those routes as tools, plus `reload_window`, which reloads a window and waits for its new extension host (and optionally for diagnostics to settle). It refuses without `force` when other Claude Code sessions run in the window, since reloading stops their background subagents. It routes each call to the selected window.
 - `skills/vscode`: the `/vscode` skill. It drives the MCP tools, compares diagnostics snapshots, and reads Output channels from log files.
 - `hooks/`: on `SessionStart`, builds and installs the extension when the installed version is missing or stale.
 
@@ -30,7 +30,7 @@ Support is added per platform and per agent when needed, not through one abstrac
 |---|---|---|
 | macOS + Claude Code (VS Code extension) | Supported, tested | — |
 | Linux | Untested | Registry path and hook assume a POSIX shell, which Linux has |
-| Windows | Untested | Install hook is bash; `compare-diagnostics.py` needs Python |
+| Windows | Untested | Install hook is bash; `compare-diagnostics.py` needs Python; `reload_window` session detection uses `ps` |
 | Codex / Gemini / OpenCode | Manual setup | No stable server path outside the Claude plugin cache; the `execute_command` reload note assumes Claude Code's `continueAfterReload` |
 | VS Code Remote (SSH/WSL/containers) | Unsupported | Extension runs remotely and writes its registry there |
 | Cursor / Windsurf / VSCodium | Untested | The hook installs through `code` only |
