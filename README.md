@@ -10,7 +10,6 @@ Lets local agents read VS Code diagnostics and run VS Code commands without rais
   - Tasks and terminals: `list_tasks`, `run_task`, `get_terminal_output`.
   - Debugging: `debug_status`, `debug_start`, `debug_stop`, `debug_breakpoints`, `debug_control` (steps wait for the next stop), `debug_inspect`, `get_debug_output`.
   - Code is located by symbol name plus optional line or snippet; ambiguous names return the candidates instead of guessing.
-- `skills/vscode`: the `/vscode` skill. It drives the MCP tools, compares diagnostics snapshots, and reads Output channels from log files.
 - `hooks/`: on `SessionStart`, builds and installs the extension when the installed version is missing or stale.
 
 ## Security
@@ -31,8 +30,8 @@ Support is added per platform and per agent when needed, not through one abstrac
 |---|---|---|
 | macOS + Claude Code (VS Code extension) | Supported, tested | — |
 | Linux | Untested | Registry path and hook assume a POSIX shell, which Linux has |
-| Windows | Untested | Install hook is bash; `compare-diagnostics.py` needs Python; `reload_window` session detection uses `ps` |
-| Codex / Gemini / OpenCode | Manual setup | No stable server path outside the Claude plugin cache; the `execute_command` reload note assumes Claude Code's `continueAfterReload` |
+| Windows | Untested | Install hook is bash; `reload_window` session detection uses `ps` |
+| Codex / Gemini / OpenCode | Manual setup | No stable server path outside the Claude plugin cache; the `reload_window` session note assumes Claude Code's `continueAfterReload` |
 | VS Code Remote (SSH/WSL/containers) | Unsupported | Extension runs remotely and writes its registry there |
 | Cursor / Windsurf / VSCodium | Untested | The hook installs through `code` only |
 

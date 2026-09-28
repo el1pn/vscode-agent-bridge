@@ -168,7 +168,9 @@ const TOOLS = [
   {
     name: 'get_debug_output',
     description: 'Read Debug Console output of a debug session (latest session by default). Only output produced after '
-      + 'the bridge started is available; returns the last max_chars characters.',
+      + 'the bridge started is available; returns the last max_chars characters. VS Code has no API for Output panel '
+      + 'channels: read those from log files under the VS Code logs directory (on macOS '
+      + '~/Library/Application Support/Code/logs/<session>/window*/exthost/) or ask the user to copy them.',
     inputSchema: object({
       session: { type: 'string', description: 'Debug session id or name; default is the latest session.' },
       category: { type: 'string', description: 'Only this output category, e.g. stdout, stderr, console.' },
@@ -522,7 +524,7 @@ async function handle({ method, params = {} }) {
     return {
       protocolVersion: params.protocolVersion ?? '2025-06-18',
       capabilities: { tools: {} },
-      serverInfo: { name: 'vscode-agent-bridge', version: '4.0.0' },
+      serverInfo: { name: 'vscode-agent-bridge', version: '4.1.0' },
     };
   }
   if (method === 'ping') return {};

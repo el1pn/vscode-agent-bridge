@@ -4,7 +4,7 @@ set -u
 
 command -v code >/dev/null 2>&1 || exit 0
 src="${CLAUDE_PLUGIN_ROOT:?}/extension"
-version=$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["version"])' "$src/package.json") || exit 0
+version=$(node -p 'require(process.argv[1]).version' "$src/package.json") || exit 0
 
 installed=$(code --list-extensions --show-versions 2>/dev/null | sed -n 's/^el1pn\.vscode-agent-bridge@//p')
 # Only upgrade: an older plugin cache (another session) must not replace a newer install.
