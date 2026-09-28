@@ -3,7 +3,7 @@ name: vscode
 description: Inspect VS Code Problems, Output, Debug Console, or Terminal, reload the workbench, and manage JDT lifecycle through explicit independent actions
 argument-hint: <problems|output|debug-console|terminal|reload|java-wait|java-clean> [action ...] [options]
 user-invocable: true
-allowed-tools: Bash, Read, AskUserQuestion, mcp__plugin_vscode-agent-bridge_vscode__list_windows, mcp__plugin_vscode-agent-bridge_vscode__get_diagnostics, mcp__plugin_vscode-agent-bridge_vscode__execute_command
+allowed-tools: Bash, Read, AskUserQuestion, mcp__plugin_vscode-agent-bridge_vscode__list_windows, mcp__plugin_vscode-agent-bridge_vscode__get_diagnostics, mcp__plugin_vscode-agent-bridge_vscode__execute_command, mcp__plugin_vscode-agent-bridge_vscode__get_debug_output, mcp__plugin_vscode-agent-bridge_vscode__get_terminal_output
 ---
 
 Operate VS Code using the explicit actions in `$ARGUMENTS`, left to right, each once. Perform only the requested actions; reject unknown actions or missing required options instead of guessing.
@@ -21,7 +21,7 @@ Select the target window with the `vscode` MCP tools (`list_windows`). If severa
 1. Call `get_diagnostics` with the window, `out` (default: a new `/tmp` path), and `min_count` (default `1`; for a known large workspace, derive a conservative threshold from the previous snapshot).
 2. With `--compare <path>`, run `python3 <skill base directory>/scripts/compare-diagnostics.py <before> <after>`. Identity is the tuple `resource`, `startLineNumber`, `startColumn`, `severity`, `message`.
 3. Report counts, the snapshot path, and exact removed/added counts. Build success is not diagnostic evidence.
-4. Right after `reload` or `java-clean`, Java diagnostics may be stale until `java-wait` passes; say so if `java-wait` was not requested.
+4. Right after `reload`, `java-clean`, or edits, pass `settle_ms` (for example `5000`) so the tool waits until language servers stop publishing; report `settled: false` as a timeout. `min_severity` and `resource` filter large workspaces.
 
 ## `reload` and `java-clean`
 
@@ -37,15 +37,13 @@ Options: `--storage <path>` (Red Hat Java workspace-storage dir; infer only when
 
 Run `python3 <skill base directory>/scripts/wait-for-jdt.py --storage <path> [--expected-java <jdk>] --interval 2 --stable-checks 3 --timeout <s>`. It requires a live `org.eclipse.equinox.launcher` process and stable `jdt_ws`/`ss_ws` timestamps. On timeout, report failure; silence is not stability.
 
-## `output`, `debug-console`, `terminal`
+## `debug-console`, `terminal`, `output`
 
-VS Code has no public API for other extensions' Output channels, Debug Console history, or terminal scrollback, so the bridge cannot read them.
+- `debug-console`: `get_debug_output` (latest session by default; `session`, `category`). Only covers output since the bridge started. Do not start, stop, or evaluate in a debug session.
+- `terminal`: `get_terminal_output` returns each shell-integrated command with its output and exit code. Only covers commands since the bridge started. Do not send keys or run commands in the user's terminal.
+- `output --channel <exact-name>`: VS Code has no API for other extensions' Output channels. Read the channel's log file (for example under `~/Library/Application Support/Code/logs/<session>/window*/exthost/`) or the owning tool's report; otherwise ask the user to copy it.
 
-- `output --channel <exact-name>`: read the channel's log file (for example under `~/Library/Application Support/Code/logs/<session>/window*/exthost/`) or the owning tool's report.
-- `debug-console`: read the debugger's own log or captured Debug Adapter Protocol output. Do not start, stop, or evaluate in a debug session.
-- `terminal`: prefer output of commands run through Bash or the process's own log. Do not send keys or run commands in the user's terminal.
-
-If no file source exists, ask the user to copy the panel content rather than automating the UI. State whether the result is complete or partial history.
+State whether the result is complete or partial history.
 
 ## Safety
 

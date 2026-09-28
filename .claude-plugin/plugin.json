@@ -1,8 +1,8 @@
 {
   "name": "vscode-agent-bridge",
   "displayName": "VS Code Agent Bridge",
-  "description": "Focus-free VS Code diagnostics and commands through a bundled extension and MCP server, plus JDT lifecycle and diagnostics comparison helpers.",
-  "version": "2.2.1",
+  "description": "Focus-free VS Code diagnostics, commands, tasks, and debug/terminal output through a bundled extension and MCP server.",
+  "version": "3.0.0",
   "author": {
     "name": "longpn"
   },

@@ -16,30 +16,41 @@ const WORKSPACE = {
   description: 'workspaceName, workspaceFile, or a folder path from list_windows. Optional when exactly one window is running.',
 };
 
+const ARGS_DESCRIPTION = 'Positional command arguments. VS Code types are written as {"$uri": "/abs/path or scheme://..."}, '
+  + '{"$position": [line, column]} and {"$range": [line, column, endLine, endColumn]}, all 1-based. '
+  + 'Results encode Uri as a path and Position as {line, column}, also 1-based.';
+
 const TOOLS = [
   {
     name: 'list_windows',
-    description: 'List VS Code windows with a live bridge (pid, workspaceName, workspaceFile, folders).',
+    description: 'List VS Code windows with a live bridge (pid, version, workspaceName, workspaceFile, folders).',
     inputSchema: { type: 'object', properties: {} },
   },
   {
     name: 'get_diagnostics',
-    description: 'Read all diagnostics (Problems panel) of a VS Code window through the native API without focusing it. '
+    description: 'Read diagnostics (Problems panel) of a VS Code window through the native API without focusing it. '
       + 'Returns counts by severity; writes the full array (resource, startLineNumber, startColumn, severity, message, ...) '
-      + 'to `out` when given, otherwise returns it inline. Severity: 8 error, 4 warning, 2 information, 1 hint.',
+      + 'to `out` when given, otherwise returns it inline. Severity: 8 error, 4 warning, 2 information, 1 hint. '
+      + 'Use settle_ms after a reload, clean, or edit to wait until language servers stop publishing changes.',
     inputSchema: {
       type: 'object',
       properties: {
         workspace: WORKSPACE,
         out: { type: 'string', description: 'Absolute path for an atomic JSON snapshot.' },
         min_count: { type: 'integer', minimum: 0, description: 'Fail when fewer diagnostics are returned.' },
+        min_severity: { type: 'integer', enum: [1, 2, 4, 8], description: 'Only return diagnostics at or above this severity.' },
+        resource: { type: 'string', description: 'Only return diagnostics whose file path contains this substring.' },
+        settle_ms: { type: 'integer', minimum: 0, description: 'Wait until diagnostics have not changed for this many ms. Result has settled: true, or false on timeout.' },
+        timeout_ms: { type: 'integer', minimum: 0, description: 'Upper bound for settle_ms waiting; default 120000.' },
       },
     },
   },
   {
     name: 'execute_command',
-    description: 'Run a VS Code command in a window without focusing it, e.g. workbench.action.reloadWindow or '
-      + 'java.clean.workspace. Commands that open dialogs still need the user to answer them. '
+    description: 'Run any VS Code command in a window without focusing it and return its result. Examples: '
+      + 'workbench.action.reloadWindow, java.clean.workspace, vscode.executeDefinitionProvider, '
+      + 'vscode.executeReferenceProvider, vscode.executeHoverProvider, vscode.executeDocumentSymbolProvider, '
+      + 'vscode.executeWorkspaceSymbolProvider, vscode.open. Commands that open dialogs still need the user to answer them. '
       + 'workbench.action.reloadWindow returns {accepted: true} before reloading and works on the window hosting '
       + 'this Claude Code session: the VS Code extension restores the session and continues '
       + '(claudeCode.continueAfterReload, on by default). Confirm a reload by a new pid in list_windows.',
@@ -48,9 +59,68 @@ const TOOLS = [
       properties: {
         workspace: WORKSPACE,
         command: { type: 'string', description: 'VS Code command ID.' },
-        args: { type: 'array', description: 'Positional command arguments.' },
+        args: { type: 'array', description: ARGS_DESCRIPTION },
       },
       required: ['command'],
+    },
+  },
+  {
+    name: 'list_commands',
+    description: 'List VS Code command IDs available in a window (at most 500, sorted), optionally filtered by substring.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspace: WORKSPACE,
+        filter: { type: 'string', description: 'Only return command IDs containing this substring.' },
+      },
+    },
+  },
+  {
+    name: 'list_tasks',
+    description: 'List tasks VS Code can run in a window (tasks.json and auto-detected tasks such as npm or gradle).',
+    inputSchema: { type: 'object', properties: { workspace: WORKSPACE } },
+  },
+  {
+    name: 'run_task',
+    description: 'Run a VS Code task by name and wait for it to finish. Returns the exit code, or timedOut: true. '
+      + 'Task output goes to its terminal; read it with get_terminal_output.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspace: WORKSPACE,
+        name: { type: 'string', description: 'Task name from list_tasks.' },
+        source: { type: 'string', description: 'Task source from list_tasks, when several tasks share a name.' },
+        folder: { type: 'string', description: 'Task folder from list_tasks, for multi-root workspaces.' },
+        timeout_ms: { type: 'integer', minimum: 0, description: 'Default 600000.' },
+      },
+      required: ['name'],
+    },
+  },
+  {
+    name: 'get_debug_output',
+    description: 'Read Debug Console output of a debug session in a window (latest session by default). '
+      + 'Only output produced after the bridge started is available; each session keeps at most 1,000,000 characters.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspace: WORKSPACE,
+        session: { type: 'string', description: 'Debug session id or name; default is the latest session.' },
+        category: { type: 'string', description: 'Only this output category, e.g. stdout, stderr, console.' },
+      },
+    },
+  },
+  {
+    name: 'get_terminal_output',
+    description: 'Read output of commands run in VS Code integrated terminals, per command with exit code. '
+      + 'Needs shell integration and only covers commands started after the bridge started; '
+      + 'keeps the last 50 commands and 200,000 characters each.',
+    inputSchema: {
+      type: 'object',
+      properties: {
+        workspace: WORKSPACE,
+        terminal: { type: 'string', description: 'Terminal name; default is all terminals.' },
+        limit: { type: 'integer', minimum: 1, description: 'Most recent commands to return; default 10.' },
+      },
     },
   },
 ];
@@ -90,7 +160,7 @@ function windows() {
   return found;
 }
 
-const summary = ({ pid, workspaceName, workspaceFile, folders }) => ({ pid, workspaceName, workspaceFile, folders });
+const summary = ({ pid, version, workspaceName, workspaceFile, folders }) => ({ pid, version: version ?? null, workspaceName, workspaceFile, folders });
 
 function select(workspace) {
   let candidates = windows();
@@ -109,13 +179,13 @@ function select(workspace) {
 }
 
 // node:http instead of fetch: fetch's 300s header timeout would cut off long commands.
-function call(entry, method, route, body) {
+function call(entry, route, body = {}) {
   return new Promise((resolve, reject) => {
     const req = http.request({
       host: '127.0.0.1',
       port: entry.port,
       path: route,
-      method,
+      method: 'POST',
       timeout: 600_000,
       headers: { Authorization: `Bearer ${entry.token}`, 'Content-Type': 'application/json' },
     }, (res) => {
@@ -129,38 +199,48 @@ function call(entry, method, route, body) {
     });
     req.on('timeout', () => req.destroy(new Error('timed out')));
     req.on('error', (err) => reject(err instanceof ToolError ? err : new ToolError(`Bridge unreachable: ${err.message}`)));
-    req.end(body === undefined ? undefined : JSON.stringify(body));
+    req.end(JSON.stringify(body));
   });
 }
 
-async function getDiagnostics({ workspace, out, min_count: minCount = 0 } = {}) {
-  const data = await call(select(workspace), 'GET', '/diagnostics');
-  if (data.length < minCount) throw new ToolError(`Only ${data.length} diagnostics, below min_count ${minCount}`);
+async function getDiagnostics({
+  workspace, out, min_count: minCount = 0, min_severity: minSeverity, resource, settle_ms: settleMs, timeout_ms: timeoutMs,
+} = {}) {
+  const { settled, items } = await call(select(workspace), '/diagnostics', { minSeverity, resource, settleMs, timeoutMs });
+  if (items.length < minCount) throw new ToolError(`Only ${items.length} diagnostics, below min_count ${minCount}`);
   const counts = Object.fromEntries(Object.values(SEVERITY_NAMES).map((name) => [name, 0]));
-  for (const item of data) {
+  for (const item of items) {
     const name = SEVERITY_NAMES[item.severity];
     if (name) counts[name] += 1;
   }
-  const result = { total: data.length, ...counts };
-  if (!out) return { ...result, diagnostics: data };
+  const result = { total: items.length, ...counts, ...(settled === null ? {} : { settled }) };
+  if (!out) return { ...result, diagnostics: items };
   if (!path.isAbsolute(out) || !fs.existsSync(path.dirname(out))) {
     throw new ToolError(`out must be an absolute path in an existing directory: ${out}`);
   }
   const tmp = `${out}.tmp.${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2));
+  fs.writeFileSync(tmp, JSON.stringify(items, null, 2));
   fs.renameSync(tmp, out);
   return { ...result, saved: out };
 }
 
 function executeCommand({ command, workspace, args = [] } = {}) {
   if (typeof command !== 'string') throw new ToolError('command must be a string');
-  return call(select(workspace), 'POST', '/command', { command, args });
+  return call(select(workspace), '/command', { command, args });
 }
 
 const HANDLERS = {
   list_windows: () => windows().map(summary),
   get_diagnostics: getDiagnostics,
   execute_command: executeCommand,
+  list_commands: ({ workspace, filter } = {}) => call(select(workspace), '/commands', { filter }),
+  list_tasks: ({ workspace } = {}) => call(select(workspace), '/tasks'),
+  run_task: ({ workspace, name, source, folder, timeout_ms: timeoutMs } = {}) => {
+    if (typeof name !== 'string') throw new ToolError('name must be a string');
+    return call(select(workspace), '/run-task', { name, source, folder, timeoutMs });
+  },
+  get_debug_output: ({ workspace, session, category } = {}) => call(select(workspace), '/debug-output', { session, category }),
+  get_terminal_output: ({ workspace, terminal, limit } = {}) => call(select(workspace), '/terminal-output', { terminal, limit }),
 };
 
 // Returns the JSON-RPC result, or undefined for an unknown method.
@@ -169,7 +249,7 @@ async function handle({ method, params = {} }) {
     return {
       protocolVersion: params.protocolVersion ?? '2025-06-18',
       capabilities: { tools: {} },
-      serverInfo: { name: 'vscode-agent-bridge', version: '2.2.0' },
+      serverInfo: { name: 'vscode-agent-bridge', version: '3.0.0' },
     };
   }
   if (method === 'ping') return {};
