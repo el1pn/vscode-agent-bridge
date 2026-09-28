@@ -49,11 +49,28 @@ test('routes tools to the registered bridge', async () => {
     assert.ok(!('settled' in saved));
     assert.strictEqual(JSON.parse(fs.readFileSync(out, 'utf8')).length, 1);
     assert.strictEqual((await call('get_diagnostics', { settle_ms: 100 })).value.settled, true);
+    // Inline results are one line per diagnostic, relative to the window folder.
+    assert.deepStrictEqual((await call('get_diagnostics')).value.diagnostics, ['/a.ts:1:1 ERROR x']);
+    // since: diff against an earlier snapshot by the five-field identity.
+    const older = path.join(config.registry, 'older.json');
+    fs.writeFileSync(older, JSON.stringify([{ resource: '/b.ts', startLineNumber: 2, startColumn: 1, severity: 4, message: 'gone' }]));
+    const diff = (await call('get_diagnostics', { since: older })).value;
+    assert.deepStrictEqual([diff.added, diff.removed, diff.new, diff.gone], [1, 1, ['/a.ts:1:1 ERROR x'], ['/b.ts:2:1 WARN gone']]);
+    assert.ok((await call('get_diagnostics', { since: '/nonexistent.json' })).isError);
     assert.ok((await call('get_diagnostics', { min_count: 2 })).isError);
     assert.ok((await call('get_diagnostics', { workspace: 'other' })).isError);
 
     const expected = {
-      execute_command: [{ command: 'a.b', args: [{ $uri: '/a.ts' }] }, '/command', { command: 'a.b', args: [{ $uri: '/a.ts' }] }],
+      execute_command: [{ command: 'a.b', args: [{ $uri: '/a.ts' }], max_chars: 500 }, '/command', { command: 'a.b', args: [{ $uri: '/a.ts' }], maxChars: 500 }],
+      rename_symbol: [{ file: '/a.ts', symbol: 'foo', new_name: 'bar' }, '/rename', { file: '/a.ts', symbol: 'foo', newName: 'bar' }],
+      move_file: [{ from: '/a.ts', to: '/b.ts' }, '/move-file', { from: '/a.ts', to: '/b.ts' }],
+      call_hierarchy: [{ file: '/a.ts', line: 3, direction: 'both' }, '/call-hierarchy', { file: '/a.ts', line: 3, direction: 'both' }],
+      debug_status: [{}, '/debug-status', {}],
+      debug_start: [{ config: 'App', wait_ms: 10 }, '/debug-start', { config: 'App', waitMs: 10 }],
+      debug_stop: [{ session: 's1' }, '/debug-stop', { session: 's1' }],
+      debug_breakpoints: [{ action: 'add', file: '/a.ts', line: 4, hit_condition: '>2' }, '/breakpoints', { action: 'add', file: '/a.ts', line: 4, hitCondition: '>2' }],
+      debug_control: [{ action: 'next', thread_id: 7 }, '/debug-control', { action: 'next', threadId: 7 }],
+      debug_inspect: [{ expression: 'x', frame_id: 2 }, '/debug-inspect', { expression: 'x', frameId: 2 }],
       list_commands: [{ filter: 'java' }, '/commands', { filter: 'java' }],
       list_tasks: [{}, '/tasks', {}],
       run_task: [{ name: 'build', folder: '/ws', timeout_ms: 5 }, '/run-task', { name: 'build', folder: '/ws', timeoutMs: 5 }],
@@ -65,6 +82,11 @@ test('routes tools to the registered bridge', async () => {
     }
     assert.ok((await call('execute_command', {})).isError);
     assert.ok((await call('run_task', {})).isError);
+    assert.ok((await call('rename_symbol', { file: '/a.ts' })).isError, 'new_name required');
+    assert.ok((await call('move_file', { from: '/a.ts' })).isError, 'to required');
+    assert.ok((await call('debug_control', {})).isError, 'action required');
+    const { tools: listed } = await handle({ method: 'tools/list' });
+    assert.ok(listed.every((t) => t.annotations && typeof t.annotations.readOnlyHint === 'boolean'), 'every tool is annotated');
     assert.ok((await call('nope')).isError);
 
     // Reload: the "new host" is a registry entry with another live pid (this test's parent) on the same port.

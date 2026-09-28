@@ -2,13 +2,14 @@
 
 Lets local agents read VS Code diagnostics and run VS Code commands without raising or focusing the window. It is packaged as a Claude Code plugin and contains:
 
-- `extension/`: a VS Code extension. Each window listens on a random `127.0.0.1` port and writes `{pid, port, token, version, workspaceName, workspaceFile, folders}` to `~/.vscode-agent-bridge/<pid>.json` (mode `0600`). All routes are `POST` with a JSON body:
-  - `/diagnostics` `{minSeverity, resource, settleMs, timeoutMs}`: diagnostics in Problems-panel JSON shape (`severity`: 8 error, 4 warning, 2 information, 1 hint), optionally after they stop changing.
-  - `/command` `{command, args}`: runs any command. Args use `{$uri}`, `{$position: [line, column]}`, `{$range: [...]}` (1-based); results encode VS Code types back to JSON. `workbench.action.reloadWindow` replies `{accepted: true}` before reloading.
-  - `/commands` `{filter}`, `/tasks`, `/run-task` `{name, source, folder, timeoutMs}`.
-  - `/debug-output` `{session, category}`: Debug Console output captured by a debug adapter tracker.
-  - `/terminal-output` `{terminal, limit}`: per-command output and exit code captured through shell integration.
-- `mcp/server.js`: a stdio MCP server (Node.js built-ins only) exposing those routes as tools, plus `reload_window`, which reloads a window and waits for its new extension host (and optionally for diagnostics to settle). It refuses without `force` when other Claude Code sessions run in the window, since reloading stops their background subagents. It routes each call to the selected window.
+- `extension/`: a VS Code extension. Each window listens on a random `127.0.0.1` port and writes `{pid, port, token, version, workspaceName, workspaceFile, folders}` to `~/.vscode-agent-bridge/<pid>.json` (mode `0600`). All routes are `POST` with a JSON body.
+- `mcp/server.js`: a stdio MCP server (Node.js built-ins only) that routes each tool call to the selected window:
+  - Windows: `list_windows`, `reload_window` (waits for the new extension host; refuses without `force` when other Claude Code sessions run in the window, since reloading stops their background subagents).
+  - Diagnostics: `get_diagnostics` — one line per item, settle wait, severity/resource/source filters, `open` to analyze unopened files, `out` snapshots and `since` diffs.
+  - Code: `execute_command` (any command; `{$uri}`, `{$symbol}`, `{$position}`, `{$range}` args; compact text for locations, symbols, outlines, hovers; truncated at `max_chars`), `list_commands`, `rename_symbol`, `move_file` (updates imports), `call_hierarchy`.
+  - Tasks and terminals: `list_tasks`, `run_task`, `get_terminal_output`.
+  - Debugging: `debug_status`, `debug_start`, `debug_stop`, `debug_breakpoints`, `debug_control` (steps wait for the next stop), `debug_inspect`, `get_debug_output`.
+  - Code is located by symbol name plus optional line or snippet; ambiguous names return the candidates instead of guessing.
 - `skills/vscode`: the `/vscode` skill. It drives the MCP tools, compares diagnostics snapshots, and reads Output channels from log files.
 - `hooks/`: on `SessionStart`, builds and installs the extension when the installed version is missing or stale.
 

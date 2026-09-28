@@ -1,8 +1,8 @@
 {
   "name": "vscode-agent-bridge",
   "displayName": "VS Code Agent Bridge",
-  "description": "Localhost bridge letting local agents use VS Code APIs (diagnostics, commands, tasks, debug and terminal output) without focusing the window",
-  "version": "3.1.0",
+  "description": "Localhost bridge letting local agents use VS Code APIs (diagnostics, commands, rename, call hierarchy, tasks, debugging, terminal output) without focusing the window",
+  "version": "4.0.2",
   "publisher": "el1pn",
   "license": "MIT",
   "engines": {

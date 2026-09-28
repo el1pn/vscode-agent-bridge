@@ -1,6 +1,6 @@
 ---
 name: vscode
-description: Inspect VS Code Problems, Output, Debug Console, or Terminal, reload the workbench, and clean the Java language server workspace through explicit independent actions
+description: Inspect VS Code Problems, Output, Debug Console, or Terminal, reload the workbench, and clean the Java language server workspace through explicit independent actions. For code navigation, rename, file moves, call hierarchy, tasks, and debugging, call the vscode MCP tools directly.
 argument-hint: <problems|output|debug-console|terminal|reload|java-clean> [action ...] [options]
 user-invocable: true
 allowed-tools: Bash, Read, AskUserQuestion, mcp__plugin_vscode-agent-bridge_vscode__list_windows, mcp__plugin_vscode-agent-bridge_vscode__get_diagnostics, mcp__plugin_vscode-agent-bridge_vscode__execute_command, mcp__plugin_vscode-agent-bridge_vscode__reload_window, mcp__plugin_vscode-agent-bridge_vscode__get_debug_output, mcp__plugin_vscode-agent-bridge_vscode__get_terminal_output
@@ -23,6 +23,7 @@ Select the target window with the `vscode` MCP tools (`list_windows`). If severa
 3. Report counts, the snapshot path, and exact removed/added counts. Build success is not diagnostic evidence.
 4. `--settle <ms>` maps to `settle_ms`: wait until language servers stop publishing, bounded by `--timeout <seconds>` (default `120`). Pass it after `reload`, `java-clean`, or edits even when not given (default `5000`), since diagnostics are stale until servers finish. Report `settled: false` as a timeout, never as stability.
 5. `--severity <error|warning|information|hint>` and `--resource <substring>` map to `min_severity` and `resource`; keep the unfiltered snapshot unless the user asked for a filtered file.
+6. With `--compare <path>`, `since` (same identity) is an alternative when only the new and gone lines are needed without a second snapshot file.
 
 ## `reload` and `java-clean`
 
@@ -32,7 +33,7 @@ Select the target window with the `vscode` MCP tools (`list_windows`). If severa
 
 ## `debug-console`, `terminal`, `output`
 
-- `debug-console`: `get_debug_output` (latest session by default; `session`, `category`). Only covers output since the bridge started. Do not start, stop, or evaluate in a debug session.
+- `debug-console`: `get_debug_output` (latest session by default; `session`, `category`, `filter`). Only covers output since the bridge started. Do not start, stop, step, or evaluate in a debug session under this action.
 - `terminal`: `get_terminal_output` returns each shell-integrated command with its output and exit code. Only covers commands since the bridge started. Do not send keys or run commands in the user's terminal.
 - `output --channel <exact-name>`: VS Code has no API for other extensions' Output channels. Read the channel's log file (for example under `~/Library/Application Support/Code/logs/<session>/window*/exthost/`) or the owning tool's report; otherwise ask the user to copy it.
 
