@@ -2,7 +2,7 @@
   "name": "vscode-agent-bridge",
   "displayName": "VS Code Agent Bridge",
   "description": "Focus-free VS Code diagnostics and commands through a bundled extension and MCP server, plus macOS UI fallbacks for panels and JDT lifecycle.",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "author": {
     "name": "longpn"
   },

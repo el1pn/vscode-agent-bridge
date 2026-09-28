@@ -60,6 +60,8 @@ The plugin's `vscode` MCP server exposes it as tools:
 - `mcp__plugin_vscode-agent-bridge_vscode__get_diagnostics` — `workspace`, optional `out`, `min_count`.
 - `mcp__plugin_vscode-agent-bridge_vscode__execute_command` — `workspace`, `command`, optional `args`.
 
+Reloading the window that hosts this Claude Code session is supported: the bridge replies `accepted` before reloading, and the Claude Code VS Code extension restores the session and continues the interrupted step (`claudeCode.continueAfterReload`, on by default). The `claude` process is replaced, so confirm the reload by a new `pid` for that window in `list_windows`. If the setting is off, warn the user that the session will stop.
+
 Use these for `problems` (`get_diagnostics`), `reload` (`workbench.action.reloadWindow`), and `java-clean` (`java.clean.workspace`, which still shows a confirmation prompt the user must answer). Fall back to the AppleScript/UI path below only when `list_windows` shows no matching window, and tell the user that path will steal focus.
 
 ## Shared window selection
