@@ -6,7 +6,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 
-const REGISTRY_DIR = path.join(os.homedir(), '.vscode-bridge');
+const REGISTRY_DIR = path.join(os.homedir(), '.vscode-agent-bridge');
 // Same numeric severities the Problems panel uses when copied as JSON.
 const SEVERITY = { 0: 8, 1: 4, 2: 2, 3: 1 };
 

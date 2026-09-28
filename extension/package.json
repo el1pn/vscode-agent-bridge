@@ -1,0 +1,19 @@
+{
+  "name": "vscode-agent-bridge",
+  "displayName": "VS Code Agent Bridge",
+  "description": "Localhost bridge letting local agents read diagnostics and run commands without focusing the window",
+  "version": "2.0.0",
+  "publisher": "el1pn",
+  "license": "MIT",
+  "engines": {
+    "vscode": "^1.80.0"
+  },
+  "activationEvents": [
+    "onStartupFinished"
+  ],
+  "main": "./extension.js",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/el1pn/vscode-agent-bridge.git"
+  }
+}
