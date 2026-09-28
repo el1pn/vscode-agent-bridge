@@ -19,6 +19,19 @@ Claude Code: install the `vscode-agent-bridge` plugin from the `el1pn` marketpla
 
 Other MCP clients: install the extension (`cd extension && npx -y @vscode/vsce package --allow-missing-repository --skip-license && code --install-extension *.vsix`), then register `python3 <repo>/mcp/server.py` as a stdio server.
 
+## Support
+
+Support is added per platform and per agent when needed, not through one abstraction for all of them.
+
+| Target | Status | Gap to close |
+|---|---|---|
+| macOS + Claude Code (VS Code extension) | Supported, tested | — |
+| Linux | Untested; code is POSIX-only | `wait-for-jdt.py` uses `ps -axo` (BSD form) |
+| Windows | Blocked | `server.py` refuses to run: `os.kill(pid, 0)` would terminate the process. Also `python3` launcher in `.mcp.json`, bash hook, `ps` in `wait-for-jdt.py` |
+| Codex / Gemini / OpenCode | Manual setup | No stable server path outside the Claude plugin cache; the `execute_command` reload note assumes Claude Code's `continueAfterReload` |
+| VS Code Remote (SSH/WSL/containers) | Unsupported | Extension runs remotely and writes its registry there |
+| Cursor / Windsurf / VSCodium | Untested | The hook installs through `code` only |
+
 ## Develop
 
 - Self-check: `python3 mcp/test_server.py`

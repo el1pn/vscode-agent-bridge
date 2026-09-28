@@ -64,6 +64,9 @@ class ToolError(Exception):
 
 
 def alive(pid):
+    # ponytail: POSIX only. On Windows os.kill(pid, 0) terminates the process; add a Windows check before supporting it.
+    if os.name != "posix":
+        raise ToolError("Windows is not supported yet.")
     try:
         os.kill(pid, 0)
         return True
