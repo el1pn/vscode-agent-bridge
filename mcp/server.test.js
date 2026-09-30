@@ -5,7 +5,9 @@ const http = require('http');
 const os = require('os');
 const path = require('path');
 const test = require('node:test');
-const { config, handle, HANDLERS, agentsInWindow } = require('./server.js');
+const {
+  config, handle, HANDLERS, agentsInWindow, parseWinProcessList, CLAUDE_PROC_RE,
+} = require('./server.js');
 
 const TOKEN = 't';
 const DIAGNOSTICS = [{ resource: '/a.ts', startLineNumber: 1, startColumn: 1, severity: 8, message: 'x' }];
@@ -14,6 +16,30 @@ async function call(name, args = {}) {
   const result = await handle({ method: 'tools/call', params: { name, arguments: args } });
   return { isError: Boolean(result.isError), value: result.isError ? result.content[0].text : JSON.parse(result.content[0].text) };
 }
+
+test('parseWinProcessList maps CIM output to the pid table', () => {
+  const normal = JSON.stringify([
+    { ProcessId: 1, ParentProcessId: 0, CommandLine: 'C:\\Windows\\System32\\wininit.exe' },
+    { ProcessId: 2, ParentProcessId: 1, CommandLine: null }, // access-denied system process
+  ]);
+  assert.deepStrictEqual(parseWinProcessList(normal), new Map([
+    [1, { ppid: 0, command: 'C:\\Windows\\System32\\wininit.exe' }],
+    [2, { ppid: 1, command: '' }],
+  ]));
+
+  // CIM emits a bare object instead of a 1-element array when only one process is selected.
+  const single = JSON.stringify({ ProcessId: 9, ParentProcessId: 1, CommandLine: 'x' });
+  assert.deepStrictEqual(parseWinProcessList(single), new Map([[9, { ppid: 1, command: 'x' }]]));
+});
+
+test('CLAUDE_PROC_RE matches the claude CLI on both POSIX and Windows', () => {
+  assert.ok(CLAUDE_PROC_RE.test('/usr/local/bin/claude'));
+  assert.ok(CLAUDE_PROC_RE.test('/usr/local/bin/claude --foo'));
+  assert.ok(CLAUDE_PROC_RE.test('C:\\Users\\x\\AppData\\Roaming\\npm\\claude.cmd'));
+  assert.ok(CLAUDE_PROC_RE.test('C:\\Users\\x\\AppData\\Roaming\\npm\\claude.exe --output-format stream-json'));
+  assert.ok(!CLAUDE_PROC_RE.test('C:\\tools\\claude-something-else.exe'));
+  assert.ok(!CLAUDE_PROC_RE.test('/usr/local/bin/not-claude'));
+});
 
 test('routes tools to the registered bridge', async () => {
   config.registry = fs.mkdtempSync(path.join(os.tmpdir(), 'bridge-'));

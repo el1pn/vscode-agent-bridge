@@ -404,9 +404,29 @@ const windowKey = (e) => e.workspaceFile ?? e.folders?.[0] ?? e.workspaceName;
 const FIRST_CHANGE_MS = 30_000;
 const sleep = (ms) => new Promise((resolve) => { setTimeout(resolve, ms); });
 
-// ponytail: POSIX ps only. On Windows this returns an empty table, so reload_window neither detects the
-// hosting session nor blocks on other agents; add a Windows process listing before supporting it there.
+// CommandLine is null for some access-denied system processes; CIM returns a bare object instead of
+// a 1-element array when exactly one process is selected (won't happen given how many run, but cheap to guard).
+function parseWinProcessList(json) {
+  const rows = JSON.parse(json);
+  const table = new Map();
+  for (const row of Array.isArray(rows) ? rows : [rows]) {
+    table.set(row.ProcessId, { ppid: row.ParentProcessId, command: row.CommandLine ?? '' });
+  }
+  return table;
+}
+
 function processTable() {
+  if (process.platform === 'win32') {
+    try {
+      const json = execFileSync('powershell.exe', [
+        '-NoProfile', '-NonInteractive', '-Command',
+        'Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,CommandLine | ConvertTo-Json -Compress',
+      ], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+      return parseWinProcessList(json);
+    } catch {
+      return new Map();
+    }
+  }
   let text = '';
   try {
     text = execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
@@ -430,6 +450,9 @@ function ancestors(table, pid) {
   return chain;
 }
 
+// Matches the claude CLI's basename regardless of path separator, with or without a Windows executable extension.
+const CLAUDE_PROC_RE = /(^|[\\/])claude(\.(exe|cmd|ps1))?(\s|$)/i;
+
 // Claude Code sessions whose process descends from the extension host; background subagents run inside them.
 function agentsInWindow(hostPid) {
   const table = processTable();
@@ -437,7 +460,7 @@ function agentsInWindow(hostPid) {
   const hostsThisSession = mine.has(hostPid);
   const others = [];
   for (const [pid, { command }] of table) {
-    if (mine.has(pid) || !/(^|\/)claude(\s|$)/.test(command.split(' --')[0])) continue;
+    if (mine.has(pid) || !CLAUDE_PROC_RE.test(command.split(' --')[0])) continue;
     if (ancestors(table, pid).includes(hostPid)) others.push(pid);
   }
   return { hostsThisSession, others };
@@ -567,4 +590,6 @@ function main() {
 
 if (require.main === module) main();
 
-module.exports = { config, handle, HANDLERS, agentsInWindow };
+module.exports = {
+  config, handle, HANDLERS, agentsInWindow, parseWinProcessList, CLAUDE_PROC_RE,
+};

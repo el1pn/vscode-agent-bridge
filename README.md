@@ -60,7 +60,7 @@ Support is added per platform and per agent when needed, not through one abstrac
 |---|---|---|
 | macOS + Claude Code (VS Code extension) | Supported, tested | — |
 | Linux | Untested | Registry path and hook assume a POSIX shell, which Linux has |
-| Windows | Untested | Install hook is bash; `reload_window` session detection uses `ps` |
+| Windows | Untested | Not yet verified end-to-end on a live Windows session; install hook needs Git Bash on `PATH` |
 | Codex / Gemini / OpenCode | Manual setup, untested | Setup from a clone (see Install); the `reload_window` session note assumes Claude Code's `continueAfterReload` |
 | VS Code Remote (SSH/WSL/containers) | Unsupported | Extension runs remotely and writes its registry there |
 | Cursor / Windsurf / VSCodium | Untested | The hook installs through `code` only |
