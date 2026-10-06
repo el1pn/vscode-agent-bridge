@@ -33,13 +33,11 @@ Update with `claude plugin update vscode-agent-bridge@vscode-agent-bridge`; when
 
 ### Other MCP clients
 
-Install the extension, then register the MCP server from a clone:
+Install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=el1pn.vscode-agent-bridge), then clone the repository for the MCP server:
 
 ```sh
+code --install-extension el1pn.vscode-agent-bridge
 git clone https://github.com/el1pn/vscode-agent-bridge.git
-cd vscode-agent-bridge/extension
-npx -y @vscode/vsce package --allow-missing-repository -o /tmp/vscode-agent-bridge.vsix
-code --install-extension /tmp/vscode-agent-bridge.vsix
 ```
 
 Register `node /absolute/path/to/vscode-agent-bridge/mcp/server.js` as a stdio server, for example in Codex `~/.codex/config.toml`:
@@ -50,7 +48,7 @@ command = "node"
 args = ["/absolute/path/to/vscode-agent-bridge/mcp/server.js"]
 ```
 
-Reload open VS Code windows once. Pull and repeat the extension steps to update. Reloading the window that hosts the agent may stop it, since resuming after a reload is a Claude Code feature.
+Reload open VS Code windows once. VS Code updates the extension; pull to update the MCP server. Reloading the window that hosts the agent may stop it, since resuming after a reload is a Claude Code feature.
 
 ## Support
 
@@ -68,7 +66,7 @@ Support is added per platform and per agent when needed, not through one abstrac
 ## Develop
 
 - Self-check: `node --test mcp/server.test.js`
-- When `extension/` changes, bump `extension/package.json` `version` so the hook reinstalls it, and bump `.claude-plugin/plugin.json` `version` so `claude plugin update` picks up the change.
+- When `extension/` changes, bump `extension/package.json` `version` so the hook reinstalls it, and bump `.claude-plugin/plugin.json` `version` so `claude plugin update` picks up the change. Then publish to the Marketplace: `cd extension && npx -y @vscode/vsce package` and upload the `.vsix` at https://marketplace.visualstudio.com/manage (Update).
 
 ## License
 
