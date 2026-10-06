@@ -4,7 +4,7 @@
   "description": "Focus-free VS Code diagnostics, commands, rename, file moves, call hierarchy, tasks, and debugging through a bundled extension and MCP server.",
   "version": "4.1.1",
   "author": {
-    "name": "longpn",
+    "name": "el1pn",
     "url": "https://github.com/el1pn"
   },
   "keywords": [

@@ -2,7 +2,7 @@
   "name": "vscode-agent-bridge",
   "description": "VS Code Agent Bridge: focus-free VS Code diagnostics, commands, rename, call hierarchy, tasks, and debugging for Claude Code.",
   "owner": {
-    "name": "longpn",
+    "name": "el1pn",
     "url": "https://github.com/el1pn"
   },
   "plugins": [

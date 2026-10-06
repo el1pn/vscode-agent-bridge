@@ -5,6 +5,20 @@
   "version": "4.0.2",
   "publisher": "el1pn",
   "license": "MIT",
+  "categories": [
+    "Other"
+  ],
+  "keywords": [
+    "mcp",
+    "agent",
+    "claude",
+    "diagnostics",
+    "automation"
+  ],
+  "homepage": "https://github.com/el1pn/vscode-agent-bridge",
+  "bugs": {
+    "url": "https://github.com/el1pn/vscode-agent-bridge/issues"
+  },
   "engines": {
     "vscode": "^1.93.0"
   },
